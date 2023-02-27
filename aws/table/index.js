@@ -1,9 +1,8 @@
-import { processSignUp } from './signUp.js'
-import { processSignIn } from './signIn.js'
-import { processVerify } from './verify.js'
-import { processValidate } from './validate.js'
-import { processRefresh } from './refresh.js'
-import { processResend } from './resend.js'
+import { processSetSchema } from './setschema.js'
+import { processGetSchema } from './getschema.js'
+import { processUpdateData } from './updatedata.js'
+import { processGetData } from './getdata.js'
+
 import { origin } from "./ddbClient.js";
 
 export const handler = async (event, context, callback) => {
@@ -27,49 +26,33 @@ export const handler = async (event, context, callback) => {
     
     switch(event["path"]) {
       
-      case "/signup":
-        const resultSignUp = await processSignUp(event);
-        response.body = JSON.stringify(resultSignUp.body);
-        response.statusCode = resultSignUp.statusCode;
+      case "/getschema":
+        const resultGetSchema = await processGetSchema(event);
+        response.body = JSON.stringify(resultGetSchema.body);
+        response.statusCode = resultGetSchema.statusCode;
+        break;
+      
+      case "/setschema":
+        const resultSetSchema = await processSetSchema(event);
+        response.body = JSON.stringify(resultSetSchema.body);
+        response.statusCode = resultSetSchema.statusCode;
         break;
         
-      case "/signin":
-        const resultSignIn = await processSignIn(event);
-        response.body = JSON.stringify(resultSignIn.body);
-        response.statusCode = resultSignIn.statusCode;
+      case "/updatedata":
+        const resultUpdateData = await processUpdateData(event);
+        response.body = JSON.stringify(resultUpdateData.body);
+        response.statusCode = resultUpdateData.statusCode;
         break;
         
-      case "/verify":
-        const resultVerify = await processVerify(event);
-        response.body = JSON.stringify(resultVerify.body);
-        response.statusCode = resultVerify.statusCode;
-        break;
-        
-      case "/validate":
-        const resultValidate = await processValidate(event);
-        response.body = JSON.stringify(resultValidate.body);
-        response.statusCode = resultValidate.statusCode;
-        break;
-        
-      case "/refresh":
-        const resultRefresh = await processRefresh(event);
-        response.body = JSON.stringify(resultRefresh.body);
-        response.statusCode = resultRefresh.statusCode;
-        if(resultRefresh.statusCode === 200) {
-          response.headers["Set-Cookie"] = "refreshToken=" + resultRefresh.body.data.refreshToken.token + " expires=" + new Date(parseInt(resultRefresh.body.data.refreshToken.expiry)).toUTCString(); 
-        }
-        break;
-        
-      case "/resend":
-        const resultResend = await processResend(event);
-        response.body = JSON.stringify(resultResend.body);
-        response.statusCode = resultResend.statusCode;
+      case "/getdata":
+        const resultGetData = await processGetData(event);
+        response.body = JSON.stringify(resultGetData.body);
+        response.statusCode = resultGetData.statusCode;
         break;
         
       default:
         response.body = JSON.stringify({result: false, error: "Method not found"});
         response.statusCode = 404;
-      
       
     }
     

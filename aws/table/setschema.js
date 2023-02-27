@@ -1,8 +1,8 @@
-import { UpdateItemCommand,QueryCommand,GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { UpdateItemCommand,ScanCommand,GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { SendEmailCommand } from "@aws-sdk/client-ses";
-import { ddbClient, TABLE_NAME, AUTH_REGION, AUTH_API, SETSCHEMA_ADMIN_ONLY } from "./ddbClient.js";
+import { ddbClient, TABLE_NAME, AUTH_REGION, AUTH_API } from "./ddbClient.js";
 import { generateOTP } from './util.js';
-import { getSchema } from './schema.js';
+import { getSchema } from './getjsonschema.js';
 import { processAuthenticate } from './authenticate.js';
 
 export const processSetSchema = async (event) => {
@@ -36,15 +36,14 @@ export const processSetSchema = async (event) => {
     
     const authResult = await processAuthenticate(event["headers"]["Authorization"]);
     
-    if(!authResult) {
+    if(!authResult.result) {
       return authResult;
     }
     
-    if(SETSCHEMA_ADMIN_ONLY) {
-      if(!authResult.admin) {
-        return {statusCode: 401, body: {result: false, error: "Unauthorized request!"}};
-      }
+    if(!authResult.admin) {
+      return {statusCode: 401, body: {result: false, error: "Unauthorized request!"}};
     }
+    
     
   }
   
@@ -58,67 +57,20 @@ export const processSetSchema = async (event) => {
       return {statusCode: 400, body: { result: false, error: "Malformed body!"}};
   }
   
-  // acquire schema
-  
-  var resultQuery = await getSchema();
-    
-  if(resultQuery.Items.length === 0) {
-    return {statusCode: 500, body: { result: false, error: "Server Error!"}};
-  }
-  
-  const jsonSchema = JSON.parse(resultQuery.Items[0].value.S);
-  
-  // get only 1 data item
-  
-  var queryParams = {
-      TableName: TABLE_NAME,
-      KeyConditionExpression: "#type1 = :s1",
-      Limit: 1,
-      ExpressionAttributeNames: {
-        "#type1": "type"
-      },
-      ExpressionAttributeValues: {
-        ":s1": { "S": "data" }
-      }
-  };
-  
-  var resultItems = []
-  
-  async function ddbQuery () {
-    try {
-      const data = await ddbClient.send (new QueryCommand(queryParams));
-      resultItems = resultItems.concat((data.Items))
-      if(data.LastEvaluatedKey != null) {
-        queryParams.ExclusiveStartKey = data.LastEvaluatedKey;
-        await ddbQuery();
-      }
-    } catch (err) {
-      return err;
-    }
-  };
-    
-  await ddbQuery();
-  
-  // Check if new schema alters already existing fields
-  
-  if(resultItems.length > 0 && event.body.indexOf(resultQuery.Items[0].value.S) < 0) {
-    return {statusCode: 409, body: { result: false, error: "This operation is not safe! Since database already contains records, existing schema fields cannot be altered."}};
-  }
   
   var updateParams = {
       TableName: TABLE_NAME,
       Key: {
-        type: { S: "schema" },
-        id: {N: "1"}
+        id: {S: "schema"}
       },
-      UpdateExpression: "set #value1 = :schema1",
+      UpdateExpression: "set #schema1 = :schema1",
       ExpressionAttributeValues: {
         ":schema1" : {
           "S": event.body
         }
       },
       ExpressionAttributeNames: {
-        "#value1" : "value"
+        "#schema1" : "schema"
       }
   };
 

@@ -1,9 +1,10 @@
 import { UpdateItemCommand,QueryCommand,GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { SendEmailCommand } from "@aws-sdk/client-ses";
-import { ddbClient, TABLE_NAME, AUTH_REGION, AUTH_API, GETSCHEMA_ADMIN_ONLY } from "./ddbClient.js";
+import { ddbClient, TABLE_NAME, AUTH_REGION, AUTH_API } from "./ddbClient.js";
 import { generateOTP } from './util.js';
-import { getSchema } from './schema.js';
+import { getSchema } from './getjsonschema.js';
 import { processAuthenticate } from './authenticate.js';
+import { processValidateJson } from './validatejson.js'
 
 export const processGetSchema = async (event) => {
   
@@ -36,28 +37,16 @@ export const processGetSchema = async (event) => {
     
     const authResult = await processAuthenticate(event["headers"]["Authorization"]);
     
-    if(!authResult) {
+    if(!authResult.result) {
       return authResult;
     }
     
-    if(GETSCHEMA_ADMIN_ONLY) {
-      if(!authResult.admin) {
-        return {statusCode: 401, body: {result: false, error: "Unauthorized request!"}};
-      }
-    }
-    
   }
   
-  // acquire schema
-  
-  var resultQuery = await getSchema();
-    
-  if(resultQuery.Items.length === 0) {
-    return {statusCode: 500, body: { result: false, error: "Server Error!"}};
-  }
-  
-  const jsonSchema = JSON.parse(resultQuery.Items[0].value.S);
-  
-  return {statusCode: 200, body: {result: true, value: jsonSchema}};
+  const resultSchema = await getSchema();
+   
+  console.log(resultSchema.Items[0].schema.S);
+   
+  return {statusCode: 200, body: {result: resultSchema.Items[0].schema.S}};
 
 }

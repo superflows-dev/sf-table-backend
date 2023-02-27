@@ -1,11 +1,12 @@
-import { DeleteItemCommand,QueryCommand,GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { UpdateItemCommand,QueryCommand,GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { SendEmailCommand } from "@aws-sdk/client-ses";
-import { ddbClient, TABLE_NAME, AUTH_REGION, AUTH_API, DETAILS_ADMIN_ONLY } from "./ddbClient.js";
+import { ddbClient, TABLE_NAME, AUTH_REGION, AUTH_API } from "./ddbClient.js";
 import { generateOTP } from './util.js';
-import { getSchema } from './schema.js';
+import { getSchema } from './getjsonschema.js';
 import { processAuthenticate } from './authenticate.js';
+import { processValidateJson } from './validatejson.js'
 
-export const processDetails = async (event) => {
+export const processGetData = async (event) => {
   
   if(AUTH_REGION.length > 0 && AUTH_API.length > 0) {
     
@@ -36,85 +37,49 @@ export const processDetails = async (event) => {
     
     const authResult = await processAuthenticate(event["headers"]["Authorization"]);
     
-    if(!authResult) {
+    if(!authResult.result) {
       return authResult;
-    }
-    
-    if(DETAILS_ADMIN_ONLY) {
-      if(!authResult.admin) {
-        return {statusCode: 401, body: {result: false, error: "Unauthorized request!"}};
-      }
     }
     
   }
   
-  // body sanity check
+   // body sanity check
   
+  var id = "";
   var body = null;
     
   try {
       body = JSON.parse(event.body);
+      id = (JSON.parse(event.body).id.trim());
   } catch (e) {
       return {statusCode: 400, body: { result: false, error: "Malformed body!"}};
   }
   
-  // sanity
-  
-  var id = -1;
-    
-  try {
-      id = parseInt(JSON.parse(event.body).id.trim());
-  } catch (e) {
-      return {statusCode: 400, body: { result: false, error: "Malformed body!"}};
-  }
-  
-  if(id == null || id < 0 || typeof id != 'number') {
+  if(id == "") {
       return {statusCode: 400, body: {result: false, error: "Id not valid!"}}
   }
-  
-  // acquire schema
-  
-  var resultQuery = await getSchema();
-    
-  if(resultQuery.Items.length === 0) {
-    return {statusCode: 500, body: { result: false, error: "Server Error!"}};
-  }
-  
-  const jsonSchema = JSON.parse(resultQuery.Items[0].value.S);
-  
-  // get query
   
   var getParams = {
       TableName: TABLE_NAME,
       Key: {
-        type: { S: "data" },
-        id: {N: id + ""}
-      },
+        id: {S: id + ""}
+      }
   };
   
-  async function ddbGet () {
+  console.log(getParams);
+  
+  const ddbGet = async () => {
       try {
         const data = await ddbClient.send(new GetItemCommand(getParams));
         return data;
       } catch (err) {
+        console.log(err)
         return err;
       }
   };
   
   var resultGet = await ddbGet();
   
-  if(resultGet.Item == null) {
-  
-      return {statusCode: 404, body: {result: false, error: "Item does not exist!"}}
-
-  }
-  
-  var unmarshalledItem = {};
-  for(var i = 0; i < Object.keys(resultGet.Item).length; i++) {
-    unmarshalledItem[Object.keys(resultGet.Item)[i]] = resultGet.Item[Object.keys(resultGet.Item)[i]][Object.keys(resultGet.Item[Object.keys(resultGet.Item)[i]])[0]]
-  }
-  
-  
-  return {statusCode: 200, body: {result: true, data: {schema: jsonSchema, value: unmarshalledItem}}};
+  return {statusCode: 200, body: {result: resultGet.Item != null ? resultGet.Item : '[]'}};
 
 }
